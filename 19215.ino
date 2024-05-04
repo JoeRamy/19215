@@ -11,13 +11,14 @@ DHT dht2(DHTPIN2, DHTTYPE);
 
 Servo myServo;
 
-const int relayPins[] = {13, 12, 11}; // 0: electricity, 1: water pump, 2: air fan
+const int actuators[] = {13, 12, 11}; // 0: electricity, 1: water pump, 2: air fan
 const int smkPin = A0; 
 const int flmPin = 4;
 const int servoPin = 5;
 
 SoftwareSerial BTSerial(2, 3); // RX, TX for HC-06
 
+bool prevFireState = false;
 bool fireState = false;
 float tempDifference = 0.0;
 int airQuality = 0;
@@ -30,7 +31,7 @@ void setup() {
   pinMode(6, OUTPUT);
   myServo.attach(servoPin);
   for (int i = 0; i < 3; i++) {
-    pinMode(relayPins[i], OUTPUT);
+    pinMode(actuators[i], OUTPUT);
     Serial.begin(9600);
     dht1.begin();
     dht2.begin();
@@ -49,24 +50,24 @@ void loop() {
   for (int angle = 0; angle <= 180; angle += 1) {
     if (flmValue == 0) {
       fireState = true;
-      digitalWrite(relayPins[0], 0);
-      digitalWrite(relayPins[1], 1);
+      digitalWrite(actuators[0], 0);
+      digitalWrite(actuators[1], 1);
       Serial.println("flame detected");
       delay(100);
     } else {
       fireState = false;
       Serial.println("No flame");
       delay(100);
-      digitalWrite(relayPins[0], 1);
-      digitalWrite(relayPins[1], 0);
+      digitalWrite(actuators[0], 1);
+      digitalWrite(actuators[1], 0);
     }
-    if (smkValue >= 30) {
+    if (smkValue >= 50) {
       airQuality = smkValue;
-      digitalWrite(relayPins[2], 1);
+      digitalWrite(actuators[2], 1);
       Serial.println(smkValue);
     } else {  
       airQuality = smkValue;
-      digitalWrite(relayPins[2], 0);
+      digitalWrite(actuators[2], 0);
       Serial.println(smkValue);
     }
 
@@ -105,18 +106,26 @@ void loop() {
     delay(15);  
   }
 
-  if (fireState) {
-    sendNotification(); // Call the sendNotification() function if fire is detected
+  // Send notification when fire is detected
+  if (fireState && !prevFireState) {
+    sendNotification("Fire is still on !");
   }
+  
+  // Send notification when fire is out
+  if (!fireState && prevFireState) {
+    sendNotification("Fire extinguished.");
+  }
+
+  prevFireState = fireState; // Update previous fire state
 }
 
-void sendNotification() {
+void sendNotification(String message) {
   // Construct the notification message
-  String message = "Bluetooth: connected, Fire detected! Temp Diff: ";
-  message += String(tempDifference, 1); // Append temperature difference
-  message += "°C, Air Quality: ";
-  message += airQuality;
+  String fullMessage = "Bluetooth: connected, " + message + " Temp Diff: ";
+  fullMessage += String(tempDifference, 1); // Append temperature difference
+  fullMessage += "°C, Air Quality: ";
+  fullMessage += airQuality;
   
   // Send the message via Bluetooth
-  BTSerial.print(message);
+  BTSerial.print(fullMessage);
 }
